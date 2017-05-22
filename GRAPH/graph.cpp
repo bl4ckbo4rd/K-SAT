@@ -2,23 +2,23 @@
 
 
 
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-//---------------------------------------------------------------------------------------------------------------------------------------------------------------// methods of class Node
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------// methods of class Node
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
 
 
 int Node::numberOfFactors(){
     
-  return v_fac.size();
+  return v_factors.size();
     
 };
 
 
 
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------// methods of class Factor
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------// methods of class Factor
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
 
 
@@ -26,13 +26,13 @@ int Node::numberOfFactors(){
 //p_f : index of the factor
 //p_p : # of the variables entering in a factor
 
-Factor::Factor(int p_f, vector<bool> p_v_J, int p_p){
+Factor::Factor(int p_f, vector<bool> p_v_J){
     
     f   = p_f;
     v_J = p_v_J;
-    p   = p_p;
+    p   = v_J.size();
 
-    v_node.reserve(p);
+    v_nodes.reserve(p);
     
 };
 
@@ -40,30 +40,22 @@ Factor::Factor(int p_f, vector<bool> p_v_J, int p_p){
 
 int Factor::numberOfNodes(){
     
-    return v_node.size();
+    return v_nodes.size();
     
 };
 
 
 
-//input variables:
-//i,j,k : indeces of the nodes entering in the factor
-
-double Factor::clause(int i, int j, int k){
+bool Factor::clause(){
     
-    bool J1 = v_J[0];
-    bool J2 = v_J[1];
-    bool J3 = v_J[2];
-    
-    //this is the T=0 clause
-    return (2*J1 - 1) * (J1 - i) | (2*J2 - 1) * (J2 - j) | (2*J3 - 1) * (J3 - k);
+    if(v_values == v_J)
+        return 0;
+    else
+        return 1;
     
 };
 
 
-
-//input variables:
-//i,j,k : indeces of the nodes entering in the factor
 
 //given a triplet of variables entering in a clause, we can construct several planted "clauses".
 //a clause of the SAT problem is specified by three values J1, J2, J3, being 0 or 1 if the corresponding variables appear unnegated or negated in the clause,
@@ -72,46 +64,37 @@ double Factor::clause(int i, int j, int k){
 //it is easy to see that the only choice of J's for which the triplet do not satisfy the clause is 0, 1, 1, and more generally, for a particular realization of (x1,x2,x3) we need
 //to exclude J1=x1, J2=x2, J3=x3.
 
-void Factor::plantedClause(int i, int j, int k){
+void Factor::plantedClause(){
     
-    vector<bool> temp_v_J, p_J;
-    bool J1, J2, J3;
-    int flag=1;
+    int  flag=1;
     
     while (flag){
 
-        if (2*(double)rand()/RAND_MAX-1 > 0)
-            J1=1;
-        else
-            J1=0;
+        vector<bool> temp_v_J;
+        
+        for (int k = 0; k < p ; ++k){
+        
+            if (2*(double)rand()/RAND_MAX-1 > 0)
+                temp_v_J.push_back(1);
+            else
+                temp_v_J.push_back(0);
     
-        if (2*(double)rand()/RAND_MAX-1 > 0)
-            J2=1;
-        else
-            J2=0;
-    
-        if (2*(double)rand()/RAND_MAX-1 > 0)
-            J3=1;
-        else
-            J3=0;
-
-        p_J = make_vector<bool>() << i << j << k;
-        temp_v_J = make_vector<bool>() << J1  << J2  << J3;
-    
-        if (p_J != temp_v_J)
+        }
+        
+        if (v_values != temp_v_J){
+            v_J = temp_v_J;
             flag=0;
+        }
+        
     }
-
-    //this is the T=0 clause
-    v_J = temp_v_J;
     
 };
 
 
 
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-//---------------------------------------------------------------------------------------------------------------------------------------------------------------// methods of class Graph
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//------------------------------------------------------------------------------------------------------------------------------------------------------------// methods of class Graph
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
 
 
@@ -142,15 +125,15 @@ int Graph::numberOfTotalNodes(){
 
 void Graph::factorsOfNode(int i){
   cout << "node " << i << " has " << v[i].numberOfFactors() << " factors: " << endl;
-  for (vector<int>::iterator it = v[i].v_fac.begin() ; it != v[i].v_fac.end(); ++it)
+  for (vector<int>::iterator it = v[i].v_factors.begin() ; it != v[i].v_factors.end(); ++it)
     cout << *it << endl;
 };
 
 
 
 void Graph::nodesOfFactor(int a){
-  cout << "factor " << a << " has " << F[a]->numberOfNodes() << " nodes: " << endl;
-  for (vector<int>::iterator it = F[a]->v_node.begin() ; it != F[a]->v_node.end(); ++it)
+  cout << "factor " << a << " has " << F[a].numberOfNodes() << " nodes: " << endl;
+  for (vector<int>::iterator it = F[a].v_nodes.begin() ; it != F[a].v_nodes.end(); ++it)
     cout << *it << endl;
 };
 
@@ -158,7 +141,7 @@ void Graph::nodesOfFactor(int a){
 
 //input variables:
 //p_a    : factor index;
-//p_v_J  : p=3-component vector whose components are 0 or 1 depending if the corresponding variable is negated or not
+//p_v_J  : p-component vector whose components are 1 or 0 depending if the corresponding variable is negated or not
 //v_da   : nodes attached to the factor
 
 int Graph::addFactor(int p_a, vector<bool> p_v_J, vector<int> v_da){
@@ -166,65 +149,37 @@ int Graph::addFactor(int p_a, vector<bool> p_v_J, vector<int> v_da){
     vector <int> v1 = v_da;
     std::sort(v1.begin(), v1.end());
     
-    int flag=1;
+    int flag = 1;
     
     //before adding a factor we check that the factor does not already exist.
     //if the factor already exists, flag is set to 0.
-    //to this aim it is sufficient to check that the first node of v_da does not appear in a factor with the two other nodes of v_da.
+    //to this aim it is sufficient to check that the first node of v_da does not appear in a factor with the p-1 other nodes of v_da.
     
-    for(vector<int>::iterator it_a = v[v_da[0]].v_fac.begin(); it_a != v[v_da[0]].v_fac.end(); it_a++){
+    for(vector<int>::iterator it_a = v[v_da[0]].v_factors.begin(); it_a != v[v_da[0]].v_factors.end(); it_a++){
         
-        vector <int> v2 = F[*it_a]->v_node;
+        vector <int> v2 = F[*it_a].v_nodes;
         std::sort(v2.begin(), v2.end());
         
-        if (v1 == v2){
+        if (v1 == v2)
             flag=0;
-        }
+        
     }
     
     if(flag){
         
-        //a is a pointer to the derived class FactorSat
-        Factor* a = new Factor(p_a,p_v_J,p);
+        Factor a(p_a,p_v_J);
         
-        for (int i=0; i<v_da.size(); i++)
-            a->v_node.push_back(v_da[i]);
+        for (int i = 0; i < v_da.size(); ++i)
+            a.v_nodes.push_back(v_da[i]);
         
         F.push_back(a);
         
-        for(int i=0; i<v_da.size(); i++)
-            v[v_da[i]].v_fac.push_back(p_a);
+        for(int i = 0; i < v_da.size(); ++i)
+            v[v_da[i]].v_factors.push_back(p_a);
+    
     }
     
     return flag;
-    
-};
-
-
-
-void Graph::graphStructure(){
-    
-    cout << endl;
-    cout << endl;
-    
-    cout << "structure of the graph: " << endl;
-    cout << endl;
-    
-    for (int i=0; i<N; i++)
-        factorsOfNode(i);
-    
-    for (int a=0; a<M; a++)
-        nodesOfFactor(a);
-    
-    cout << endl;
-    cout << endl;
-    
-    cout << "factors types: " << endl;
-    for (int a=0; a<M; a++)
-        cout << a << " J's: " << F[a]->v_J[0] << " " << F[a]->v_J[1] << " " << F[a]->v_J[2] << endl;
-    
-    cout << endl;
-    cout << endl;
     
 };
 
@@ -237,41 +192,38 @@ void Graph::ErdosRenyi(int p_M){
     
     M = p_M;
     
-    vector<int> v;
-    vector <bool> v_J;
-    int i,j,k;
-    bool J1, J2, J3;
-    int a = 0;
-    int flag;
     
-    while (a<M){
-        i = rand() % N ;
-        j = rand() % N ;
-        k = rand() % N ;
+    int  a = 0;
+    int  flag;
+    
+    while (a < M){
         
-        if (i!=j && i!=k && j!=k){
-            v = make_vector<int>() << i << j << k;
+        vector<int>  v_f;               //vector of nodes entering in a factor
+        vector<bool> v_J;               //vector of J values attached to nodes entering in a factor
+        
+        for (int i = 0; i < p; ++i)
+            v_f.push_back(rand() % N );
+        
+        //check for no repetitions
+        
+        sort (v_f.begin(), v_f.end());
+        vector<int>::iterator it = unique (v_f.begin(), v_f.end());
+        v_f.resize(distance(v_f.begin(),it) );
+        
+        if (v_f.size() == p){
             
-            if (2*(double)rand()/RAND_MAX-1 > 0)
-                J1=1;
-            else
-                J1=0;
-            
-            if (2*(double)rand()/RAND_MAX-1 > 0)
-                J2=1;
-            else
-                J2=0;
-            
-            if (2*(double)rand()/RAND_MAX-1 > 0)
-                J3=1;
-            else
-                J3=0;
-            
-            v_J = make_vector<bool>() << J1 << J2 << J3;
-            
-            flag=addFactor(a, v_J, v);
+            for (int i = 0; i < p; ++i){
+                if (2*(double)rand()/RAND_MAX-1 > 0)
+                    v_J.push_back(1);
+                else
+                    v_J.push_back(0);
+            }
+        
+            flag = addFactor(a, v_J, v_f);
             if (flag) a++;
+            
         }
+    
     }
     
 };
@@ -282,42 +234,50 @@ void Graph::ErdosRenyi(int p_M){
 //p_M : # of factors
 //ps  : planted configuration
 
-void Graph::plantedErdosRenyi(int p_M, vector<int> &ps){
+void Graph::plantedErdosRenyi(int p_M, vector<bool> &ps){
     
     M = p_M;
     
-    //ps is the planted solution;
+    for (int i = 0; i < N; ++i)
+        v[i].value = ps[i];
     
-    vector<int> v;
-    vector <bool> v_J;
-    int i,j,k;
-    int a = 0;
-    bool J1, J2, J3;
-    int flag;
     
-    while (a<M){
-        i=rand() % N ;
-        j=rand() % N ;
-        k=rand() % N ;
+    int  a = 0;
+    int  flag;
+    
+    while (a < M){
         
-        if (i!=j && i!=k && j!=k){
-            v   = make_vector<int>() << i  << j  << k;
-            v_J = make_vector<bool>() << 0 << 0 << 0;
-            flag=addFactor(a, v_J, v);
+        vector<int>  v_f;           //vector of nodes entering in a factor
+        vector<bool> v_J;           //vector of J values attached to nodes entering in a factor
+        vector<bool> val;           //values of the binary variables entering in a factor
+
+        for (int i = 0; i < p; ++i){
+            int n  = rand() % N;
+            val.push_back(ps[n]);
+            v_f.push_back(n);
+        }
+        
+        //check for no repetitions
+        
+        sort (v_f.begin(), v_f.end());
+        vector<int>::iterator it = unique (v_f.begin(), v_f.end());
+        v_f.resize(distance(v_f.begin(),it) );
+        
+        if (v_f.size() == p){
+        
+            for (int i = 0; i < p; ++i)
+                v_J.push_back(0);
+            
+            flag = addFactor(a, v_J, v_f);
             
             if (flag){
-                a++;
-                //ptr is the pointer to the last added factor
-                //please remind that F is a vector of pointers to Factor's.
-                //in order to use this pointer as a pointer to XorsatFactor we need to use the cast operator
-                Factor* ptr = F.back();
-                F[ptr->f]->plantedClause(ps[i],ps[j],ps[k]);
                 
-                //J1 = ((FactorSat*)F[ptr->f])->v_J[0];
-                //J2 = ((FactorSat*)F[ptr->f])->v_J[1];
-                //J3 = ((FactorSat*)F[ptr->f])->v_J[2];
-                //cout << ps[i] << " " << ps[j] << " " << ps[k]  << " " << ((2*J1 - 1) * (J1 - ps[i]) | (2*J2 - 1) * (J2 - ps[j]) | (2*J3 - 1) * (J3 - ps[k])) << endl;
-               
+                a++;
+                //ptr is a reference to the last added factor
+                Factor ptr = F.back();
+                F[ptr.f].v_values = val;
+                F[ptr.f].plantedClause();
+                
             }
         }
     }
@@ -325,24 +285,50 @@ void Graph::plantedErdosRenyi(int p_M, vector<int> &ps){
 
 
 
-//input variables:
-//ps  : planted configuration
-
-bool Graph::check(vector<int> &ps){
+void Graph::graphStructure(){
     
-    bool prod=1;
-    int i, j, k;
-    bool J1, J2, J3;
-    for (int a=0; a<M; a++){
-        i = F[a]->v_node[0];
-        j = F[a]->v_node[1];
-        k = F[a]->v_node[2];
+    cout << endl;
+    cout << endl;
+    
+    cout << "structure of the graph: " << endl;
+    cout << endl;
+    
+    for (int i = 0; i < N; i++)
+        factorsOfNode(i);
+    
+    for (int a = 0; a < M; a++)
+        nodesOfFactor(a);
+    
+    cout << endl;
+    cout << endl;
+    
+    cout << "factors types: " << endl;
+    for (int a = 0; a < M; a++){
+        cout << a << " J's: ";
+        for (int k = 0; k < p; ++k)
+            cout << F[a].v_J[k] << " ";
+        cout << endl;
+    }
+    
+    
+    cout << endl;
+    cout << endl;
+    
+};
+
+
+
+//input variables:
+//ps  : configuration
+
+bool Graph::check(vector<bool> &ps){
+    
+    bool prod = 1;
+    
+    for (int a = 0; a < M; ++a){
         
-        J1 = F[a]->v_J[0];
-        J2 = F[a]->v_J[1];
-        J3 = F[a]->v_J[2];
-        
-        prod*=((2*J1 - 1) * (ps[i] - (1-J1)) | (2*J2 - 1) * (ps[j] - (1-J2)) | (2*J3 - 1) * (ps[k] - (1-J3)));
+        if (F[a].v_values == F[a].v_J)
+            prod = 0;
         
     }
     
@@ -352,9 +338,9 @@ bool Graph::check(vector<int> &ps){
 
 
 
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-//------------------------------------------------------------------------------------------------------------------------------------------------------------// methods of class Messages
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//---------------------------------------------------------------------------------------------------------------------------------------------------------// methods of class Messages
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
 
 
@@ -382,8 +368,8 @@ void Messages::initMessages(){
         int size_di = G.v[it_i->n].numberOfFactors();  //di is the set of factors attached to node i. size_di is the number of such factors
         xi_NodeToFac[it_i->n].resize(size_di);
         
-        for (vector<int>::iterator it_a = G.v[it_i->n].v_fac.begin(); it_a != G.v[it_i->n].v_fac.end(); ++it_a){
-            int index_a = distance (G.v[it_i->n].v_fac.begin(), it_a);
+        for (vector<int>::iterator it_a = G.v[it_i->n].v_factors.begin(); it_a != G.v[it_i->n].v_factors.end(); ++it_a){
+            int index_a = distance (G.v[it_i->n].v_factors.begin(), it_a);
             
             xi_NodeToFac[it_i->n][index_a] = 0.5;
             
@@ -391,9 +377,9 @@ void Messages::initMessages(){
     }
     
     //resize Hxi_FacToNode
-    for(vector<Factor*>::iterator it_a=G.F.begin(); it_a !=G.F.end(); ++it_a){
-        int size_da = G.F[(*it_a)->f]->numberOfNodes(); //da is the set of nodes attached to factor a. size_da is the number of such nodes and should be p
-        Hxi_FacToNode[(*it_a)->f].resize(size_da);
+    for(vector<Factor>::iterator it_a=G.F.begin(); it_a !=G.F.end(); ++it_a){
+        int size_da = G.F[it_a->f].numberOfNodes(); //da is the set of nodes attached to factor a. size_da is the number of such nodes and should be p
+        Hxi_FacToNode[it_a->f].resize(size_da);
     }
     
     //set no bias, i.e set bias to the uniform distribution
@@ -414,20 +400,20 @@ void Messages::HxiUpdate(){
     
     double prod_xi;
     
-    for (vector<Factor*>::iterator it_b = G.F.begin() ; it_b != G.F.end(); ++it_b){
-        for (vector<int>::iterator it_i = G.F[(*it_b)->f]->v_node.begin() ; it_i != G.F[(*it_b)->f]->v_node.end(); ++it_i){
-            //cout << "Hxi from factor " << (*it_b)->f << " to node " << *it_i << endl;
+    for (vector<Factor>::iterator it_b = G.F.begin() ; it_b != G.F.end(); ++it_b){
+        for (vector<int>::iterator it_i = G.F[it_b->f].v_nodes.begin() ; it_i != G.F[it_b->f].v_nodes.end(); ++it_i){
+            //cout << "Hxi from factor " << (*it_b).f << " to node " << *it_i << endl;
             //compute message nu_b_to_i
-            int index_i = distance (G.F[(*it_b)->f]->v_node.begin(), it_i);
+            int index_i = distance (G.F[it_b->f].v_nodes.begin(), it_i);
             vector <vector <double> > in_eta;
             
             prod_xi = 1.;
             
-            for(vector<int>::iterator it_j = G.F[(*it_b)->f]->v_node.begin(); it_j != G.F[(*it_b)->f]->v_node.end(); ++it_j){
-                if(*it_j!=*it_i){
+            for(vector<int>::iterator it_j = G.F[it_b->f].v_nodes.begin(); it_j != G.F[it_b->f].v_nodes.end(); ++it_j){
+                if(*it_j != *it_i){
                     //cout << "j: " << *it_j << endl;
-                    vector<int>::iterator it = find(G.v[*it_j].v_fac.begin(), G.v[*it_j].v_fac.end(), (*it_b)->f);
-                    int index_b = distance (G.v[*it_j].v_fac.begin(), it);
+                    vector<int>::iterator it = find(G.v[*it_j].v_factors.begin(), G.v[*it_j].v_factors.end(), it_b->f);
+                    int index_b = distance (G.v[*it_j].v_factors.begin(), it);
                     
                     prod_xi *= xi_NodeToFac[*it_j][index_b];
                     
@@ -435,7 +421,7 @@ void Messages::HxiUpdate(){
             }
             
             //Hxi_b_to_i
-            Hxi_FacToNode[(*it_b)->f][index_i] = ( 1 - prod_xi ) / ( 2 - prod_xi );
+            Hxi_FacToNode[it_b->f][index_i] = ( 1 - prod_xi ) / ( 2 - prod_xi );
             
         }
     }
@@ -453,10 +439,10 @@ void Messages::xiUpdate (){
     bool Jai, Jbi;
     
     for (vector<Node>::iterator it_i = G.v.begin(); it_i != G.v.end(); ++it_i){
-        for (vector<int>::iterator it_a = G.v[it_i->n].v_fac.begin(); it_a != G.v[it_i->n].v_fac.end(); ++it_a){
+        for (vector<int>::iterator it_a = G.v[it_i->n].v_factors.begin(); it_a != G.v[it_i->n].v_factors.end(); ++it_a){
             //cout << "xi from node " << it_i->n << " to factor " << *it_a << endl;
             //compute message eta_i_to_a
-            int index_a = distance (G.v[it_i->n].v_fac.begin(), it_a);
+            int index_a = distance (G.v[it_i->n].v_factors.begin(), it_a);
             
             prod_HxiS_1 = 1;
             prod_HxiU_1 = 1;
@@ -465,18 +451,18 @@ void Messages::xiUpdate (){
             prod_HxiU_2 = 1;
 
             
-            vector<int>::iterator it = find(G.F[*it_a]->v_node.begin(), G.F[*it_a]->v_node.end(), it_i->n);
-            index_i = distance (G.F[*it_a]->v_node.begin(), it);
+            vector<int>::iterator it = find(G.F[*it_a].v_nodes.begin(), G.F[*it_a].v_nodes.end(), it_i->n);
+            index_i = distance (G.F[*it_a].v_nodes.begin(), it);
             
-            Jai = G.F[*it_a]->v_J[index_i];
+            Jai = G.F[*it_a].v_J[index_i];
             
-            for(vector<int>::iterator it_b = G.v[it_i->n].v_fac.begin(); it_b != G.v[it_i->n].v_fac.end(); ++it_b){
+            for(vector<int>::iterator it_b = G.v[it_i->n].v_factors.begin(); it_b != G.v[it_i->n].v_factors.end(); ++it_b){
                 if(*it_b!=*it_a){
                     //cout << "b: " << *it_b << endl;
-                    vector<int>::iterator it = find(G.F[*it_b]->v_node.begin(), G.F[*it_b]->v_node.end(), it_i->n);
-                    index_i = distance (G.F[*it_b]->v_node.begin(), it);
+                    vector<int>::iterator it = find(G.F[*it_b].v_nodes.begin(), G.F[*it_b].v_nodes.end(), it_i->n);
+                    index_i = distance (G.F[*it_b].v_nodes.begin(), it);
                     
-                    Jbi = G.F[*it_b]->v_J[index_i];
+                    Jbi = G.F[*it_b].v_J[index_i];
                     
                     if (Jbi == Jai){
                         prod_HxiS_1 *= Hxi_FacToNode[*it_b][index_i];
@@ -504,12 +490,14 @@ void Messages::xiUpdate (){
 
 
 
-void Messages::nodeMarginals(int verbose=0){
+bool Messages::nodeMarginals(int verbose=0){
     
     double prod_HxiS_1, prod_HxiS_2;
     double prod_HxiU_1, prod_HxiU_2;
     
     bool Jai;
+    
+    bool f = 1;
     
     //for each node i
     for(vector<Node>::iterator it_i=G.v.begin(); it_i !=G.v.end(); ++it_i){
@@ -522,11 +510,11 @@ void Messages::nodeMarginals(int verbose=0){
         prod_HxiU_2 = 1;
 
         //we compute the product of the messages nu_FacToNode[a][i] coming from the factor attached to i
-        for (vector<int>::iterator it_a = G.v[it_i->n].v_fac.begin(); it_a != G.v[it_i->n].v_fac.end(); ++it_a){
-            vector<int>::iterator it = find(G.F[*it_a]->v_node.begin(), G.F[*it_a]->v_node.end(), it_i->n);
-            int index_i = distance (G.F[*it_a]->v_node.begin(), it);
+        for (vector<int>::iterator it_a = G.v[it_i->n].v_factors.begin(); it_a != G.v[it_i->n].v_factors.end(); ++it_a){
+            vector<int>::iterator it = find(G.F[*it_a].v_nodes.begin(), G.F[*it_a].v_nodes.end(), it_i->n);
+            int index_i = distance (G.F[*it_a].v_nodes.begin(), it);
             
-            Jai = G.F[*it_a]->v_J[index_i];
+            Jai = G.F[*it_a].v_J[index_i];
             
             if (Jai == 1){
                 prod_HxiS_1 *= Hxi_FacToNode[*it_a][index_i];
@@ -548,23 +536,25 @@ void Messages::nodeMarginals(int verbose=0){
         
         //finally we normalize the marginal
         double sum=0.;
-        for (int k=0; k<2; k++){
-            sum+=marg[k];
+        for (int k = 0; k < 2; ++k){
+            sum += marg[k];
         }
         
         if (!sum){
+            f = 0;
             if(verbose)
                 cout << "node " << it_i->n << " receives conflicting messages, see below: " << endl;
         }
         else{
-            for (int k=0; k<2; k++){
-                marg[k]/=sum;
+            for (int k = 0; k < 2; ++k){
+                marg[k] /= sum;
             }
-            marginal[it_i->n]=marg;
+            marginal[it_i->n] = marg;
         }
         
     }
     
+    return f;
 
 };
  
@@ -578,18 +568,18 @@ void Messages::nuState(){
     cout << endl;
     cout << "---*---*---*---printing messages from factors to nodes---*---*---*---" << endl;
     
-    for (vector<Factor*>::iterator it_b = G.F.begin() ; it_b != G.F.end(); ++it_b){
-        for (vector<int>::iterator it_i = G.F[(*it_b)->f]->v_node.begin() ; it_i != G.F[(*it_b)->f]->v_node.end(); ++it_i){
-            int index_i = distance (G.F[(*it_b)->f]->v_node.begin(), it_i);
+    for (vector<Factor>::iterator it_b = G.F.begin() ; it_b != G.F.end(); ++it_b){
+        for (vector<int>::iterator it_i = G.F[it_b->f].v_nodes.begin() ; it_i != G.F[it_b->f].v_nodes.end(); ++it_i){
+            int index_i = distance (G.F[it_b->f].v_nodes.begin(), it_i);
             
-            Jbi = G.F[(*it_b)->f]->v_J[index_i];
+            Jbi = G.F[it_b->f].v_J[index_i];
 
-            cout << "message from factor " << (*it_b)->f << " to node " << *it_i << " Jbi= " << Jbi << endl;
+            cout << "message from factor " << it_b->f << " to node " << *it_i << " Jbi= " << Jbi << endl;
 
             if (Jbi == 1)
-                cout << 1-Hxi_FacToNode[(*it_b)->f][index_i] << " " <<  Hxi_FacToNode[(*it_b)->f][index_i]  << endl;
+                cout << 1-Hxi_FacToNode[it_b->f][index_i] << " " <<  Hxi_FacToNode[it_b->f][index_i]  << endl;
             else
-                cout << Hxi_FacToNode[(*it_b)->f][index_i]   << " " << 1-Hxi_FacToNode[(*it_b)->f][index_i] << endl;
+                cout <<  Hxi_FacToNode[it_b->f][index_i]  << " " << 1-Hxi_FacToNode[it_b->f][index_i] << endl;
             
         }
     }
@@ -606,14 +596,15 @@ void Messages::etaState(){
     cout << "---*---*---*---printing messages from nodes to factors---*---*---*---" << endl;
 
     for (vector<Node>::iterator it_i = G.v.begin(); it_i != G.v.end(); ++it_i){
-        for (vector<int>::iterator it_a = G.v[it_i->n].v_fac.begin(); it_a != G.v[it_i->n].v_fac.end(); ++it_a){
+        for (vector<int>::iterator it_a = G.v[it_i->n].v_factors.begin(); it_a != G.v[it_i->n].v_factors.end(); ++it_a){
+            
             cout << "message from node " << it_i->n << " to factor " << *it_a << endl;
-            int index_a = distance (G.v[it_i->n].v_fac.begin(), it_a);
+            int index_a = distance (G.v[it_i->n].v_factors.begin(), it_a);
             
-            vector<int>::iterator it = find(G.F[*it_a]->v_node.begin(), G.F[*it_a]->v_node.end(), it_i->n);
-            int index_i = distance (G.F[*it_a]->v_node.begin(), it);
+            vector<int>::iterator it = find(G.F[*it_a].v_nodes.begin(), G.F[*it_a].v_nodes.end(), it_i->n);
+            int index_i = distance (G.F[*it_a].v_nodes.begin(), it);
             
-            Jai = G.F[*it_a]->v_J[index_i];
+            Jai = G.F[*it_a].v_J[index_i];
         
             if (Jai == 1)
                 cout << 1-xi_NodeToFac[it_i->n][index_a] << " " <<  xi_NodeToFac[it_i->n][index_a]  << endl;
@@ -641,39 +632,9 @@ void Messages::marginalState(){
 
 
 
-
-/*
-
-
-
- 
- void Messages::setHardBias(vector<int>& v_bias, vector<int>& v_q){
- 
- //v_bias contains the indices of nodes that have to be biased
- //v_q contains the color towards which they have to be biased
- 
- int size=v_bias.size();
- if (size != v_q.size()){
- cout << "error: v_q and v_bias have to have the same size!" << endl;
- return;
- }
- else{
- for (int i=0; i<size; i++){
- int n=v_bias[i];
- vector <double> b(q,0);
- //we set the bias towards the index color specified in v_q[i]
- b[v_q[i]]=1;
- bias[n]=b;
- }
- }
- 
- };
- */
-
-
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-//------------------------------------------------------------------------------------------------------------------------------------------------------------------// methods of class BP
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------// methods of class BP
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
 
 
@@ -681,15 +642,17 @@ BP::BP(Graph& p_G, bool p_verbose=0) : G (p_G), mess (G), verbose(p_verbose) { N
 
 
 
-void BP::BPsweep(){
+bool BP::BPsweep(){
     
     mess.HxiUpdate();
     mess.xiUpdate();
     
-    mess.nodeMarginals(verbose);
+    bool f = mess.nodeMarginals(verbose);
     
     if(verbose)
         BPprint();
+    
+    return f;
     
 };
 
@@ -708,21 +671,14 @@ void BP::BPprint(){
 bool BP::BPiteration(double eps, int T){
     
     int    t = 0;
-    int    f = 1;
     double tmp_eps = 1;
+    
+    bool f = 1;
     
     initPreviousMarginals();
     
-    while (tmp_eps > eps && t < T){
-        BPsweep();
-        
-        if (t == 2) {
-            f = findFrustratedSpins();
-            if (f == 0){
-                cout << "****************** ERROR: ************************************* the variable set by the last calling of warningPropagation causes contraddictions" << endl;
-                break;
-            }
-        }
+    while (tmp_eps > eps && t < T && f == 1){
+        f = BPsweep();
         
         tmp_eps = compareMarginals();
         storePreviousMarginals();
@@ -732,11 +688,17 @@ bool BP::BPiteration(double eps, int T){
         }
         
         t++;
+        
+        if (f == 0)
+            return 0;
     }
+    
+    if (tmp_eps > eps)
+        f = 0;
     
     return f;
     
-}
+};
 
 
 
@@ -778,191 +740,72 @@ double BP::compareMarginals(){
 
 
 
-bool BP::findFrustratedSpins(){
+void BP::initDecimation(vector<int>& v_bias, vector<bool>& v_q){
     
-    vector<int>().swap(frustratedSpins);
-    
-    bool f=1;
-    
-    
-    double prod_HxiS_1, prod_HxiS_2;
-    double prod_HxiU_1, prod_HxiU_2;
-    
-    bool Jai;
-    
-    //for each node i
-    for(vector<Node>::iterator it_i=G.v.begin(); it_i !=G.v.end(); ++it_i){
-        vector <double> marg(2,0.);
-        
-        prod_HxiS_1 = 1;
-        prod_HxiU_1 = 1;
-        
-        prod_HxiS_2 = 1;
-        prod_HxiU_2 = 1;
-        
-        //we compute the product of the messages nu_FacToNode[a][i] coming from the factor attached to i
-        for (vector<int>::iterator it_a = G.v[it_i->n].v_fac.begin(); it_a != G.v[it_i->n].v_fac.end(); ++it_a){
-            vector<int>::iterator it = find(G.F[*it_a]->v_node.begin(), G.F[*it_a]->v_node.end(), it_i->n);
-            int index_i = distance (G.F[*it_a]->v_node.begin(), it);
-            
-            Jai = G.F[*it_a]->v_J[index_i];
-            
-            if (Jai == 1){
-                prod_HxiS_1 *= mess.Hxi_FacToNode[*it_a][index_i];
-                prod_HxiS_2 *= (1 - mess.Hxi_FacToNode[*it_a][index_i]);
-            }
-            else{
-                prod_HxiU_1 *= (1 - mess.Hxi_FacToNode[*it_a][index_i]);
-                prod_HxiU_2 *= mess.Hxi_FacToNode[*it_a][index_i];
-            }
-            
-        }
-        
-        marg[1] = prod_HxiS_1;
-        marg[0] = prod_HxiS_2;
-        
-        
-        //and we take into account the bias on the node i
-        marg[0] *= (1-mess.p_bias[it_i->n]);
-        marg[1] *= mess.p_bias[it_i->n];
-        
-        
-        //we check if marginal is normalizable. if it is not, the messages is receiving conflicting messages
-        double sum=0.;
-        for (int k=0; k<2; k++){
-            sum+=marg[k];
-        }
-        if (!sum){
-            frustratedSpins.push_back(it_i->n);
-            f=0;
-        }
-        
-    }
-    
-    return f;
-    
-};
-
-
-
-/*
-void BP::initDecimation(vector<int>& v_bias, vector<int>& v_q){
-    
-    for(int i=0; i<N; i++)
+    for(int i = 0; i < N; ++i)
         notFixedSpins.push_back(i);
     
     if(v_bias.size()){
 
-        int size=v_bias.size();
+        int size = v_bias.size();
         if (size != v_q.size()){
             cout << "error: v_q and v_bias have to have the same size!" << endl;
             return;
         }
         else{
-            for (int i=0; i<size; i++){
-                int n=v_bias[i];
+            for (int i = 0; i < size; ++i){
+                int n = v_bias[i];
                 fixedSpins.push_back(n);
                 fixedValues.push_back(v_q[i]);
                 notFixedSpins.erase(remove(notFixedSpins.begin(), notFixedSpins.end(), n), notFixedSpins.end());
                 
-                //we bias eta's towards the index color specified in v_q[i]
- 
-                //for (vector<int>::iterator it_a = G.v[n].v_fac.begin(); it_a != G.v[n].v_fac.end(); ++it_a){
-                //    int index_a = distance (G.v[n].v_fac.begin(), it_a);
-                //    vector <double> eta(q,0);
-                //    eta[v_q[i]]=1;
-                //    mess.eta_NodeToFac[n][index_a]=eta;
-                //}
-                
             }
         }
 
-        mess.setHardBias(v_bias, v_q);
+        setHardBias(v_bias, v_q);
         
     }
 
 };
 
- */
 
 
-
-
-
-
-
-
-
-/*
-bool BP::warningDecimation(int verbose=0){
+void BP::setHardBias(vector<int>& v_bias, vector<bool>& v_q){
     
-    //Pictorially this is how this method works:
+    //v_bias contains the indices of nodes that have to be biased
+    //v_q contains the color towards which they have to be biased
     
-    //time t-1:
-    //set bias and fix a group G of variables
-    //time t:
-    //update nu  (using eta at time t-1)
-    //update eta (using nu  at time t and bias at time t-1)
-    //at this time step, no variables get fixed because of the set G, but some other variables
-    //may get fixed because of the variables that we fixed at time t-2.
-    //time t+1:
-    //update nu  (using eta at time t)
-    //use these nu's to set bias and fix other variables
-    
-    //it is clear then that the variables fixed at time t-1 have some effect on the others after 2 iterations, not 1.
-    
-    //g is the number of spins that became frozen (decimated) at each iteration.
-    //g_past is the number of spins that became frozen (decimated) at the previous iteration.
-    //we do keep track of both for the reason explained above.
-    //f is a boolean variable that is set to 0 when frustrated variables are found
-    
-    int  g=1, g_past=1;
-    int  t=0;
-    bool f1=1;
-    bool f2=1;
-    
-    while (f1==1 && (g+g_past>0)){
-    
-        f1 = BPsweep(verbose);
-        
-        f2 = findFrustratedSpins();
-        
-        //f1 and f2 have to be equal
-        assert(f1==f2);
-
-        if (f1 == 0){
-            cout << "****************** ERROR: ************************************* frustrated variables are found in warningPropagation" << endl;
-            return f1;
-            break;
+    int size = v_bias.size();
+    if (size != v_q.size()){
+        cout << "error: v_q and v_bias have to have the same size!" << endl;
+        return;
+    }
+    else{
+        for (int i = 0; i < size; ++i){
+            int n = v_bias[i];
+            //we set the bias towards the value specified in v_q[i]
+            if (v_q[i] == 0)
+                mess.p_bias[n] = 0.;
+            else
+                mess.p_bias[n] = 1.;
         }
-
-        
-        g_past = g;
-        g=fixSpins(verbose);
-
-        t++;
-    
     }
     
-    return f1;
-    
-}
+};
 
 
-void BP::BPguidedDecimation(int TT, int verbose=0){
+
+void BP::BPguidedDecimation(double eps, int T, int TT){
     
-    initPreviousMarginals();
     
-    double eps = 0.001;
-    double f;
-    int    T = 100;
-    int    t=0;
+    bool f;
+    int  t = 0;
     
-    while (t < TT && notFixedSpins.size()>0){
+    while (t < TT && notFixedSpins.size() > 0){
 
     
         if(verbose){
-            cout << "--------------------------------------time: " << t << "------------------------------------ " << endl;
+            cout << "-------------------------------external time: " << t << "------------------------------------ " << endl;
             cout << endl;
             cout << "frozen variables:" << " (size=" << fixedSpins.size()    << ")" << endl;
             vec_print(fixedSpins);
@@ -972,47 +815,72 @@ void BP::BPguidedDecimation(int TT, int verbose=0){
             cout << "run BP until convergence: " << endl;
         }
         
+        f = BPiteration(eps, T);
         
-        f = BPiteration(eps, T, verbose);
-        
-        if (f == 0)
+        if (f == 0){
+            cout << endl;
+            cout << "************************************----- contraddictions found -----************************************" << endl;
             break;
+        }
         
         vector<int> v_bias;
-        vector<int> v_q;
+        vector<bool> v_q;
     
         findMostBiased(v_bias, v_q);
         
         if(v_bias.size() != 0)
-            mess.setHardBias(v_bias,v_q);
-    
+            setHardBias(v_bias,v_q);
+        
         if (verbose){
             cout << endl;
-            cout << "*************** printing the nodes that gets frozen at this time step: " << endl;
-            cout << "*************** we freeze the most biased node: " << v_bias[0] << " towards the color " << v_q[0] <<  endl;
+            cout << "*************** printing the nodes that gets frozen at time step: " << t << endl;
+            cout << "*************** we freeze the most biased node: " << endl;
+            for (int i = 0; i < v_bias.size(); ++i){
+                cout << v_bias[i] << " towards the color " << v_q[i] <<  endl;
+            }
         }
         
-        fixedSpins.push_back(v_bias[0]);
-        fixedValues.push_back(v_q[0]);
-        notFixedSpins.erase(remove(notFixedSpins.begin(), notFixedSpins.end(), v_bias[0]), notFixedSpins.end());
+        for (int i = 0; i < v_bias.size(); ++i){
+            fixedSpins.push_back(v_bias[i]);
+            fixedValues.push_back(v_q[i]);
+            notFixedSpins.erase(remove(notFixedSpins.begin(), notFixedSpins.end(), v_bias[i]), notFixedSpins.end());
+        }
         
+        
+        cout << endl;
+        cout << "fixed spins" << endl;
+        vec_print(fixedSpins);
+        cout << "fixed values" << endl;
+        vec_print(fixedValues);
+        cout << "bias" << endl;
+        vec_print(mess.p_bias);
+        cout << "number of free variables" << endl;
+        cout << notFixedSpins.size() << endl;
+        
+
         if(verbose)
-            cout << "--------------------------------------------------------------------------------------------------------------------------- call warningDecimation" << endl;
-    
-        f = warningDecimation(verbose);
+            cout << "---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- call warningDecimation" << endl;
         
+        int tw = 0;
+        f = warningDecimation(tw);
+        
+         
         if(verbose){
-            cout << "--------------------------------------------------------------------------------------------------------------------------- warning propagated" << endl;
+            cout << "--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- warning propagated for " << tw << " time steps" << endl;
             if(f)
-                cout << "--------------------------------------------------------------------------------------------------------------------------- no contraddictions found" << endl;
+                cout << "-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- no contraddictions found" << endl;
             else
-                cout << "--------------------------------------------------------------------------------------------------------------------------- contraddictions found" << endl;
+                cout << "---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- contraddictions found" << endl;
             cout << endl;
         }
         
+         
         if (f == 0){
+            cout << endl;
+            cout << "************************************----- contraddictions found -----************************************" << endl;
             break;
         }
+        
         t++;
         
     }
@@ -1028,149 +896,163 @@ void BP::BPguidedDecimation(int TT, int verbose=0){
 
 
 };
+
+
  
-*/
-
-
-
-
-/*
-void BP::findMostBiased(vector<int> & v_bias, vector<int>& v_q){
+void BP::findMostBiased(vector<int> & v_bias, vector<bool>& v_q){
     
     int    i_max = notFixedSpins[0];
-    int    col = 0;
+    bool   col;
     double tmp, max = 0.;
     
+    
     for (vector<int>::iterator it_i = notFixedSpins.begin(); it_i != notFixedSpins.end(); ++it_i){
-        tmp = mess.marginal[*it_i][0]-mess.marginal[*it_i][1];
-        if (abs(tmp) > max){
-            i_max = *it_i;
+        tmp = mess.marginal[*it_i][0] - mess.marginal[*it_i][1];
+        if (abs(tmp) > 0.999){
             
-            if (tmp > 0) col = 0;
-            else col = 1;
+            if (tmp > 0)
+                col = 0;
+            else
+                col = 1;
             
-            max = abs(tmp);
+            v_bias.push_back(*it_i);
+            v_q.push_back(col);
+            
         }
         
     }
     
-    v_bias.push_back(i_max);
-    v_q.push_back(col);
-    
-};
-
-void BP::fixRandomSpin(int verbose){
-    
-    vector<int> v_bias;
-    vector<int> v_q;
-    bool col;
-    
-    int N_free = notFixedSpins.size();
-    int i = rand() % N_free ;
-    if (2*(double)rand()/RAND_MAX-1 > 0)
-        col = 1;
-    else
-        col = 0;
-    
-    int n = notFixedSpins[i];
-    
-    v_bias.push_back(n);
-    v_q.push_back(col);
-    fixedSpins.push_back(n);
-    fixedValues.push_back(col);
-    notFixedSpins.erase(remove(notFixedSpins.begin(), notFixedSpins.end(), n), notFixedSpins.end());
-    
-    if(v_bias.size() != 0)
-        mess.setHardBias(v_bias,v_q);
-    
-    if (verbose){
-        cout << "*************** printing the nodes that gets randomly frozen: " << endl;
-        for(int i = 0; i < v_bias.size(); i++)
-            cout << v_bias[i] << " " << v_q[i] << endl;
-    }
-    
-};
-
-*/
-
-
-
-    
-    
-/*
-
-int BP::fixSpins(int verbose){
-
-    //this is function needs to be generalized to deal with a general q
-    
-    //v_bias contains the indices of nodes that have to be biased
-    //v_q contains the color towards which they have to be biased
-
-    vector<int> v_bias;
-    vector<int> v_q;
-
-
-    //for each factor a
-    for (vector<Factor*>::iterator it_a = G.F.begin() ; it_a != G.F.end(); ++it_a){
-        //we look at all the nodes to which a is sending messages
-        for (vector<int>::iterator it_i = G.F[(*it_a)->f]->v_node.begin() ; it_i != G.F[(*it_a)->f]->v_node.end(); ++it_i){
-            //if this not is not fustrated (i.e. it is not receiving conflicting messages from factors), we fix it
-            bool flag = find(frustratedSpins.begin(), frustratedSpins.end(), *it_i) != frustratedSpins.end();
-            if(!flag){
+    if (v_bias.size() == 0){
+        
+        for (vector<int>::iterator it_i = notFixedSpins.begin(); it_i != notFixedSpins.end(); ++it_i){
+            tmp = mess.marginal[*it_i][0] - mess.marginal[*it_i][1];
+            if (abs(tmp) > max){
                 
-                int index_i = distance (G.F[(*it_a)->f]->v_node.begin(), it_i);
-                //if this message contains a clear indication of the color towards which
-                //the node should be biased, we add the node to v_bias and the color to v_q,
-                //after having checked that the node has not been frozen yet.
-                if (mess.nu_FacToNode[(*it_a)->f][index_i][0]==0.){
-                    bool contains = find(fixedSpins.begin(), fixedSpins.end(), *it_i) != fixedSpins.end();
-                    if(!contains){
-                        v_bias.push_back(*it_i);
-                        v_q.push_back(1);
-                        fixedSpins.push_back(*it_i);
-                        fixedValues.push_back(1);
-                        notFixedSpins.erase(remove(notFixedSpins.begin(), notFixedSpins.end(), *it_i), notFixedSpins.end());
-
-                    }
-                    continue;
-                }
-                if (mess.nu_FacToNode[(*it_a)->f][index_i][1]==0.){
-                    bool contains = find(fixedSpins.begin(), fixedSpins.end(), *it_i) != fixedSpins.end();
-                    if(!contains){
-                        v_bias.push_back(*it_i);
-                        v_q.push_back(0);
-                        fixedSpins.push_back(*it_i);
-                        fixedValues.push_back(0);
-                        notFixedSpins.erase(remove(notFixedSpins.begin(), notFixedSpins.end(), *it_i), notFixedSpins.end());
-                    }
-                    continue;
-                }
+                if (tmp > 0)
+                    col = 0;
+                else
+                    col = 1;
+                
+                max = abs(tmp);
+                
+                i_max = *it_i;
+                
             }
+            
         }
+        
+        v_bias.push_back(i_max);
+        v_q.push_back(col);
+
     }
     
-    if(v_bias.size() != 0)
-        mess.setHardBias(v_bias,v_q);
     
-
-    if (verbose){
-        cout << "*************** printing the nodes that gets frozen at this time step: " << endl;
-        for(int i=0; i<v_bias.size(); i++)
-            cout << v_bias[i] << " " << v_q[i] << endl;
-
-        cout << endl;
-        cout << endl;
-    }
-    
-    return v_bias.size();
-
 };
 
-*/
 
-void vec_print(vector<int>& vec){
-    for (int i=0; i<vec.size(); i++)
-        cout << vec[i] << ' ';
-    cout << endl;
+
+bool BP::warningDecimation(int &t){
+    
+    //Pictorially this is how this method works:
+    
+    //iteration time t-1:
+    //set bias and fix a group G(t-1) of variables (generally one)
+    //iteration time t:
+    //update nu  (using eta at iteration time t-1)
+    //update eta (using nu  at iteration time t and bias at iteration time t-1)
+    //if we set a bias on variable j at iteration time t-1, at time t the eta's from j
+    //to all the factors to which it is connected will feel this bias.
+    //by the way, no extra variables get fixed because of the set G(t-1).
+    //G(t) is made by variables that get fixed because of biases set at iteration time t-2.
+    //iteration time t+1:
+    //update nu  (using eta at iteration time t)
+    //update eta (using nu  at iteration time t+1 and bias at iteration time t)
+    
+    //variables fixed at time t-1 have some effect on the others after 2 iterations, not 1.
+    
+    //storedMarginals1 and storedMarginals2 contain the marginals at time t and t+2.
+    //at each time t of the iteration of the warnings, we fill these vectors with only the marginals of the variables that have not been fixed yet.
+    
+    vector <double> storedMarginals1;
+    storedMarginals1.resize(N);
+    vector <double> storedMarginals2;
+    storedMarginals2.resize(N);
+    
+    bool flag = 1;
+    bool f1, f2;
+    
+    for (vector<int>::iterator it_i = notFixedSpins.begin(); it_i != notFixedSpins.end(); ++it_i)
+        storedMarginals1[*it_i] = mess.marginal[*it_i][0];
+
+    f1 = BPsweep();
+    
+    if (f1 == 0)
+        return 0;
+    
+    t = t + 1;
+    
+    while (flag == 1 && notFixedSpins.size() > 0){
+
+        flag = 0;
+        
+        f2 = BPsweep();
+    
+        if (f2 == 0)
+            return 0;
+        
+        for (vector<int>::iterator it_i = notFixedSpins.begin(); it_i != notFixedSpins.end(); ++it_i)
+            storedMarginals2[*it_i] = mess.marginal[*it_i][0];
+        
+        vector <int> v_bias;
+        vector <bool> v_q;
+
+     
+        for (vector<int>::iterator it_i = notFixedSpins.begin(); it_i != notFixedSpins.end(); ++it_i){
+            
+            if (storedMarginals2[*it_i] == 0 && storedMarginals1[*it_i] != 0){
+                int i = notFixedSpins[*it_i];
+                fixedSpins.push_back(i);
+                fixedValues.push_back(1);
+                notFixedSpins.erase(remove(notFixedSpins.begin(), notFixedSpins.end(), i), notFixedSpins.end());
+                flag = 1;
+                v_bias.push_back(i);
+                v_q.push_back(1);
+            }
+            if (storedMarginals2[*it_i] == 1 && storedMarginals1[*it_i] != 1){
+                int i = notFixedSpins[*it_i];
+                fixedSpins.push_back(i);
+                fixedValues.push_back(0);
+                notFixedSpins.erase(remove(notFixedSpins.begin(), notFixedSpins.end(), i), notFixedSpins.end());
+                flag = 1;
+                v_bias.push_back(i);
+                v_q.push_back(0);
+            }
+            
+        }
+        
+        if (flag == 1)
+            setHardBias(v_bias,v_q);
+        
+        cout << "------------------------------------------- updating during warning decimation -------------------------------------------- " << endl;
+        cout << endl;
+        cout << "fixed spins" << endl;
+        vec_print(fixedSpins);
+        cout << "fixed values" << endl;
+        vec_print(fixedValues);
+        cout << "bias" << endl;
+        vec_print(mess.p_bias);
+        cout << "number of free variables" << endl;
+        cout << notFixedSpins.size() << endl;
+        cout << endl;
+        vec_print(storedMarginals1);
+        vec_print(storedMarginals2);
+        cout << endl;
+        
+        storedMarginals1 = storedMarginals2;
+        
+        t++;
+    }
+
+    return 1;
+    
 }
-

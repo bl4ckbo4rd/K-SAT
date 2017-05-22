@@ -8,10 +8,9 @@
 using namespace std;
 
 
-
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-//------------------------------------------------------------------------------------------------------------------------------------------------------------// class representing a node
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//---------------------------------------------------------------------------------------------------------------------------------------------------------// class representing a node
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
 class Node{
 public:
@@ -19,10 +18,10 @@ public:
     Node(int p_n) : n ( p_n ) {};
   
     int n;                                                  //n is the index of the node
-    vector <int> v_fac;                                     //v_fac contains the indices of factors attached to n
     
-    int d;                                                  //this value is determined by the Leaf Removal Algorithm.
-                                                            //it is 1 if the variable belongs to the 2-core structure, 0 otherwise
+    bool value;                                             //value of the binary variable
+    
+    vector <int> v_factors;                                 //v_factors contains the indices of factors attached to n
     
     int numberOfFactors();                                  //this method returns the number of factors to which the node n is attached
     
@@ -30,42 +29,46 @@ public:
 
 
 
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-//----------------------------------------------------------------------------------------------------------------------------------------------------------// class representing a factor
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-------------------------------------------------------------------------------------------------------------------------------------------------------// class representing a factor
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
 class Factor{
 public:
     
-    Factor(int p_f, vector<bool> p_v_J, int p_p);
+    Factor(int p_f, vector<bool> p_v_J);
     
     int f;                                                  //f is the index of the factor
-    int p;                                                  //p is the number of variables entering in a factor. p=3 in the 3-XORSAT problem
+    int p;                                                  //p is the number of variables entering in a factor. p=3 in the 3-SAT problem
 
-    vector <int> v_node;                                    //v_node contains the indices of nodes attached to f
+    vector <int> v_nodes;                                   //v_nodes contains the indices of nodes attached to f
+                                                            //it is specified by the method addFactor of the class Graph
     
-    int numberOfNodes();                                    //this method returns the numer of variables to which a factor is attached. this number is p by definition
-
+    vector <bool> v_values;                                 //v_values contains the values of the binary variables attached to the factor
+    
     vector <bool> v_J;                                      //v_J is a set of p binary variables specifying the SAT clause.
                                                             //consider the clause x1 | !x2 | !x3 where ! indicates the negation.
                                                             //be Jk the k-component of the vector v_J.
-                                                            //in this case we set J1=0, J2=1, J3=1 and we write the clause as
-                                                            //(2 J1 - 1) [ J1 - x1 ] | (2 J2 - 1) [ J2 - x2 ] | (2 J3 - 1) [ J3 - x3 ]
-                                                            //in other words, we just send xk to wk = (2 Jk - 1) [ Jk - xk ]
-                                                            //and we see that if Jk is 0, then wk = xk while if Jk=1, then wk = 1 - xk = ! xk
+                                                            //in this case we set J1=0, J2=1, J3=1.
+                                                            //it is specified by the constructor
 
-    double clause(int, int, int);                           //this method implements the SAT clause represented by a factor. input: the p=3 variables involved in each clause
+    bool clause();                                          //this method implements the SAT clause represented by a factor.
+                                                            //it returns 1 if the clause is satified, and 0 if it is not.
     
-    void plantedClause(int, int, int);                      //this method looks at the input variables and sets the vector v_J accordingly.
-                                                            //input: the p=3 variables involved in each clause
+    void plantedClause();                                   //this method sets the vector v_J according to v_nodes.
+                                                            //given a set of p variables specified in v_nodes,
+                                                            //there are several options to specify a v_J such that the clause is satisfied.
+                                                            //the method picks one of them at random.
     
+    int numberOfNodes();                                    //this method returns the numer of variables to which a factor is attached. this number is p by definition
+
 };
 
 
 
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-//----------------------------------------------------------------------------------------------------------------------------------------------------// class representing a factor graph
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-------------------------------------------------------------------------------------------------------------------------------------------------// class representing a factor graph
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
 class Graph{
 public:
@@ -79,8 +82,8 @@ public:
     vector <Node> v;                                        //v contains all the nodes of the graph
                                                             //this vector is filled by the constructor.
     
-    vector <Factor*> F;                                     //F contains pointers to all the factors of the graph.
-                                                            //this vector is filled in the classes derived from Graph, that specify the model under consideration.
+    vector <Factor> F;                                      //F contains pointers to all the factors of the graph.
+                                                            //this vector is filled by the addFactor method.
     
     
     int numberOfTotalFactors();                             //this method returns the total number of factors in the graph
@@ -93,32 +96,33 @@ public:
                                                             //input variables:
                                                             //M : # of factors
     
-    void plantedErdosRenyi(int, vector<int> &);             //this method build an ER graph for which the second argument is a solution
+    void plantedErdosRenyi(int, vector<bool> &);            //this method build an ER graph for which the second argument is a solution
                                                             //inputs:
                                                             //M  : # of factors
                                                             //ps : planted solution
 
-    void graphStructure();                                  //this method prints the structure of the graph
     
     int addFactor(int, vector<bool>, vector<int>);          //the addFactor method implement the operations needed when adding a factor in the graph
                                                             //namely one needs to create a FactorSat object a, store its neighour variables and for each of them
                                                             //add the index of a as a neghbouring factor.
-                                                            //input variables: factor index, p=3-component vector whose components are 0 or 1 if the corresponding variable
+                                                            //input variables: factor index, p-component vector whose components are 1 or 0 if the corresponding variable
                                                             //appear negated or unnegated in the clause, vector of nodes attached to the factor.
-                                                            //output: is 1 if the operation could be done, 0 if not (the factor already exists).
+                                                            //output: 1 if the operation could be done, 0 if not (the factor already exists).
     
     
-    bool check(vector<int> &);                              //this method checks that the planted solution verifies all the clauses.
+    bool check(vector<bool> &);                             //this method checks that a given configuration verifies all the clauses.
                                                             //output: 1 if it does, 0 if it does not.
+
+    void graphStructure();                                  //this method prints the structure of the graph
 
     
 };
 
 
 
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-//--------------------------------------------------------------------------------------------------------------------------------------------------// class reprensenting the BP messages
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------// class representing the BP messages
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
 class Messages{
 public:
@@ -132,7 +136,7 @@ public:
     
     vector < vector <double> > xi_NodeToFac;                    //xi_NodeToFac contains the messages from node i to factor a expressing the cavity extimation
                                                                 //of the probability that x_i is equal to Ja_i in the graph where a is removed.
-    vector < vector <double> > Hxi_FacToNode;                   //Hxi_FacToNode contains the messages from factors b to node i expressing the cavity extimation
+    vector < vector <double> > Hxi_FacToNode;                   //Hxi_FacToNode contains the messages from factor b to node i expressing the cavity extimation
                                                                 //of the probability that x_i is equal to Jb_i in the graph where i only appears in factor b.
     //Loosely speaking
     //xi_NodeToFac[i][a] is the message from node i to factor a
@@ -143,6 +147,8 @@ public:
 
     vector < vector <double> > marginal;                        //marginal probability for each spin
   
+    
+    
     void initMessages();                                        //this method initializes xi messages to umbiased values. p_biases are set
                                                                 //to the 0.5 and the marginals are set to the uniform distribution as well.
                                                                 //it is invoked inside the constructor
@@ -151,14 +157,15 @@ public:
     void HxiUpdate();
     void xiUpdate();
 
-    void nodeMarginals(int);                                    //this method computes (do not print) node marginals
+    bool nodeMarginals(int);                                    //this method computes (do not print) node marginals
                                                                 //input variables:
                                                                 //verbose: set it to 1 to print error messages (if any) when a node receives
                                                                 //conflicting messages from neighbouring factors
+                                                                //output: 1 if no conflicting messages are found, 0 otherwise.
 
     //these are the printing functions
-    void etaState();                                            //this method returns the state of the eta's, ie. messages NodeToFac
-    void nuState();                                             //this method returns the state of the nu's, ie. messages FacToNode
+    void etaState();                                            //this method returns the state of the eta's, i.e. messages NodeToFac
+    void nuState();                                             //this method returns the state of the nu's, i.e. messages FacToNode
     void marginalState();                                       //this method returns the state of the marginals
 
     
@@ -167,9 +174,9 @@ public:
 
 
 
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
-//----------------------------------------------------------------------------------------------------------------------------------------------------// class reprensenting BP algorithms
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+//--------------------------------------------------------------------------------------------------------------------------------------------------// class reprensenting BP iteration
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
 class BP{
 public:
@@ -178,6 +185,7 @@ public:
  
     int N;
     bool verbose;                                               //set this variable to 1 to have a verbose version of the methods of the class
+    
     Graph G;
     Messages mess;
  
@@ -185,10 +193,8 @@ public:
                                                                 //we need to keep memory of them when iterating the BP equation to check
                                                                 //their convergence.
     
-    void BPsweep();                                             //this method updates all the nu's and all the eta's in the graph.
-                                                                //it returns 0 if at least one node receives conflicting messages, 1 otherwise
-                                                                //input variable:
-                                                                //verbose: set it to 1 to print the messages, 0 otherwise
+    bool BPsweep();                                             //this method updates all the nu's and all the eta's in the graph.
+                                                                //output: 0 if at least one node receives conflicting messages, 1 otherwise
     
     void BPprint();                                             //this method prints the BP messages and the marginals
 
@@ -196,83 +202,65 @@ public:
                                                                 //input variables:
                                                                 //eps     : this value sets the convergence quality. set it to 10^-3.
                                                                 //T       : maximum iteration time. set it to ~ N.
-                                                                //output  : it returns 0 if conflicting messages are found, 1 otherwise
+                                                                //output: 0 if at least one node receives conflicting messages, or the algorithm did not converge;
+                                                                //1 otherwise
     
     void initPreviousMarginals();                               //this method initializes prev_marginals to zeros.
-    void storePreviousMarginals();                              //this method stores the k=0 component of the marginals at time t - 1 in the vector prev_marginal
+    
+    void storePreviousMarginals();                              //this method stores the k=0 component of the marginals at time t-1 in the vector prev_marginal
+    
     double compareMarginals();                                  //this method compares marginals at time t and marginal at time t-1
                                                                 //the output is the maximum value of the absolute value of the differences between
                                                                 //the k-components of the marginals at time t and t-1.
     
-    bool findFrustratedSpins();                                 //this method evaluates, for each node, all the messages from its factors (like nodeMarginals) and seeks if they contain
-                                                                //contraddictory information. In this case, this spin is frustrated.
-                                                                //when frustrated spins are found the method returns 0.
-    
-    void initDecimation(vector<int> &, vector<int> &);          //this method set an hard bias on some specified variables
+    void initDecimation(vector<int> &, vector<bool> &);         //this method set an hard bias on some specified variables
                                                                 //the first vector contains the biased variables
                                                                 //the second vector contais the colours toward which the biased nodes are biased.
+                                                                //it also fills the vectors fixedSpins and fixedValues and notFixedSpins.
+                                                                //if no specified variable are given, the last vector is made by all the variables of the system
     
     vector <int> fixedSpins;                                    //this vector contains the spin that get frozen (decimated) along the decimation process.
                                                                 //it is filled by the method initDecimation and by the method fixSpins during the decimation process.
     
-    vector <int> fixedValues;                                   //this vector contains the values of the spin that get frozen (decimated) along the decimation process.
-                                                                //it is filled by the constructor and by the method fixSpins during the decimation process.
+    vector <bool> fixedValues;                                  //this vector contains the values of the spin that get frozen (decimated) along the decimation process.
+                                                                //it is filled by the method initDecimation and by the method fixSpins during the decimation process.
     
     vector <int> notFixedSpins;                                 //this vector contains the indices of the spin that are not frozen.
-                                                                //at t=0, it is formed by all the spins. As t increases and the decimation process continues, its size
-                                                                //decreases.
-                                                                //it is filled by the constructor and by the method fixSpins during the decimation process.
-    
-    vector <int> frustratedSpins;                               //this vector contains the spins that receive conflicting messages from the factors.
-                                                                //it is filled by the method findFrustratedSpins().
-    
-    
-    
-    
-    
-    
-    int fixSpins(int);                                          //this method fix spins values, by calling setHardBias.
-                                                                //it is invoked in the method warningDecimation,
-                                                                //when a node receives a clear message from at least one if its factors.
-                                                                //it also fills the vector fixedSpins and, when doing this, erase nodes from the vector notFixedSpins.
-                                                                //input variable:
-                                                                //verbose: set it to 1 to print the nodes that get frozen
-    
+                                                                //at t=0, it is formed by all the spins, unless we decide to run the decimation process
+                                                                //from a specific set of fixed nodes by feeding initDecimation with it.
+                                                                //As t increases and the decimation process continues, its size decreases.
+                                                                //it is filled by the method initDecimation and by the method fixSpins during the decimation process.
 
+    void setHardBias(vector<int>&, vector<bool>&);              //set an hard bias on the nodes specified by the first vector according to the value specified in the second.
+                                                                //default input vectors are empty vectors.
+                                                                //input variables: vector of nodes to be biased, vector of colors to towards which node biases have to be biased
     
-    
-    
-    bool warningDecimation(int);                                //this method runs BPsweep twice to see if the spin that we decimate are able to fix other spins
-                                                                //in the graph.
-                                                                //it returns 0 if at least one node receives conflicting messages, 1 otherwise
-    
-    
+    void findMostBiased(vector<int>&, vector<bool>&);           //after having ran the BP equation till convergence, we find the most biased variables.
+                                                                //by this we mean variables for which | p[0]-p[1] | > 0.999 or,if none, the variable with the largest
+                                                                //absolute value of the difference p[0]-p[1].
+                                                                //the search is carefully made only on the variables that have not been fixed yet.
+                                                                //this method is called inside BPguidedDecimation. 
 
-
-    void BPguidedDecimation(int, int);
-
+    bool warningDecimation(int &);                              //this method runs BPsweep twice in sequence to see if the spin that we decimate are able to
+                                                                //fix other spins in the graph. it returns 0 if at least one node receives conflicting messages, 1 otherwise
+                                                                //input variable: dummy variable set to 0 that is then used in BPguidedDecimation to count the number of time
+                                                                //steps spent iterating the warnings.
+                                                                //output: 1 if no contraddictions are found, 0 otherwise.
     
-
-    void findMostBiased(vector<int>&, vector<int>&);
+    void BPguidedDecimation(double, int, int);                  //this method uses the strategy of a decimation based on the hints given by BP to find solutions to a SAT instance
+                                                                //at each time step (external time step) it runs BP until convergence and looks for the most biased variables.
+                                                                //it fixes this(these) variable(s), runs warning propagation to see if the fixing of this variable implies the
+                                                                //fixing of other variables, and then it continues.
+                                                                //it stops or when contraddictions are found, or when a solution is found.
+                                                                //input variables: eps, #of internal time steps (the number of time steps for which BP is iterated at most to find)
+                                                                //and #of external time steps, which, in order to find complete solutions, should be O(N).
     
-    
-
-    
-    
-
 };
 
- /*
- 
- void setHardBias(vector<int> & , vector<int> &);            //this method defines hard biases towards color q for each node contained
- //in the first input vector and according to the color index contained in the second input vector.
- //default input vectors are empty vectors.
- //input variables: vector of nodes to be biased, vector of colors to towards which node biases have to be biased
- 
- 
- */
 
-//---------------------------------------------------------------------------------------------------------------------------------------------------------------------// useful functions
+
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------// useful functions
 
 //this function defines allows to fill a vector in one single line
 //it has been downloaded from https://gist.github.com/pablomtz/5577626
@@ -295,6 +283,10 @@ class make_vector {
 };
 
 //this function print all the elements of a vector.
-void vec_print(vector<int>& vec);
-
+template <class T>
+void vec_print(vector<T>& vec){
+    for (int i=0; i<vec.size(); i++)
+        cout << vec[i] << ' ';
+    cout << endl;
+}
 

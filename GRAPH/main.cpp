@@ -6,26 +6,31 @@ int main (int argc, char *argv[]){
     //M : # of Factors
     //p : # of variables that enter in a factor
     
-    int N, M, seed;
-    int p=3;
+    int N, M, p, seed, TT;
 
     
-    if(argc==4){
+    if(argc==6){
         int i = 1;
         N     = atoi(argv[i++]);
         M     = atoi(argv[i++]);
+        p     = atoi(argv[i++]);
         seed  = atoi(argv[i++]);
+        TT    = atoi(argv[i++]);
     }
     else{
-        cout << "argument: N, M, seed" << endl;
+        cout << "argument: N, M, p, seed, TT" << endl;
+        return 0;
     }
     
     
     srand(seed);
     
     Graph G(N,p);
-    f_BPsweep(G,N,M,p);
-
+    //f_Instance(G, N, M, p);
+    //f_plantedInstance(G, N, M, p);
+    //f_BPsweep(G, N, M, p);
+    //f_BPiteration(G, N, M, p);
+    f_BPguidedDecimation(G, N, M, p, TT);
     
     return 1;
 }
